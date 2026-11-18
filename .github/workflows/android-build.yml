@@ -1,0 +1,123 @@
+name: Build Android (APK + AAB)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: "Version name (e.g. 1.0.0)"
+        required: true
+        default: "1.0.0"
+      version_code:
+        description: "Version code (integer, must increase for every Play upload)"
+        required: true
+        default: "1"
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      # Falls back to Google's public TEST IDs when repo variables are not set.
+      ADMOB_APP_ID: ${{ vars.ADMOB_APP_ID || 'ca-app-pub-3940256099942544~3347511713' }}
+      VITE_ADMOB_BANNER_ID: ${{ vars.ADMOB_BANNER_ID || 'ca-app-pub-3940256099942544/6300978111' }}
+      VITE_ADMOB_INTERSTITIAL_ID: ${{ vars.ADMOB_INTERSTITIAL_ID || 'ca-app-pub-3940256099942544/1033173712' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "VERSION_NAME=${{ inputs.version_name }}" >> "$GITHUB_ENV"
+            echo "VERSION_CODE=${{ inputs.version_code }}" >> "$GITHUB_ENV"
+          else
+            echo "VERSION_NAME=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+            echo "VERSION_CODE=${{ github.run_number }}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Add Android platform
+        run: |
+          if [ ! -d android ]; then npx cap add android; fi
+          npx cap sync android
+
+      - name: Configure AdMob and version
+        run: |
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          if ! grep -q "com.google.android.gms.ads.APPLICATION_ID" "$MANIFEST"; then
+            sed -i "s#</application>#    <meta-data android:name=\"com.google.android.gms.ads.APPLICATION_ID\" android:value=\"${ADMOB_APP_ID}\"/>\n    </application>#" "$MANIFEST"
+          fi
+          GRADLE=android/app/build.gradle
+          sed -i -E "s/versionCode [0-9]+/versionCode ${VERSION_CODE}/" "$GRADLE"
+          sed -i -E "s/versionName \"[^\"]*\"/versionName \"${VERSION_NAME}\"/" "$GRADLE"
+          grep -nE "versionCode|versionName" "$GRADLE"
+
+      - name: Prepare signing keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          KS="$RUNNER_TEMP/release.keystore"
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$KS"
+          else
+            echo "::warning::No KEYSTORE_BASE64 secret found - using a temporary keystore. Do NOT upload this build to Google Play."
+            KEYSTORE_PASSWORD="android-temp"
+            KEY_ALIAS="temp"
+            KEY_PASSWORD="android-temp"
+            keytool -genkeypair -v -keystore "$KS" -alias "$KEY_ALIAS" -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$KEYSTORE_PASSWORD" -keypass "$KEY_PASSWORD" -dname "CN=TuneUp, O=TuneUp, C=US"
+          fi
+          {
+            echo "KEYSTORE_PATH=$KS"
+            echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+            echo "KEY_ALIAS=$KEY_ALIAS"
+            echo "KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Build APK and AAB
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease bundleRelease -I "$GITHUB_WORKSPACE/.github/android/signing.init.gradle" --no-daemon
+
+      - name: Package outputs
+        run: |
+          OUT="TuneUp-v${VERSION_NAME}"
+          mkdir -p "$OUT"
+          cp android/app/build/outputs/apk/release/*.apk "$OUT/TuneUp-v${VERSION_NAME}.apk"
+          cp android/app/build/outputs/bundle/release/*.aab "$OUT/TuneUp-v${VERSION_NAME}.aab"
+          zip -r "$OUT.zip" "$OUT"
+          echo "ZIP_NAME=$OUT" >> "$GITHUB_ENV"
+
+      - name: Upload artifact (zip with APK + AAB)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ZIP_NAME }}
+          path: ${{ env.ZIP_NAME }}.zip
+          retention-days: 30
