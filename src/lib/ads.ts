@@ -1,6 +1,7 @@
 import { Capacitor } from "@capacitor/core";
 import {
   AdMob,
+  AdmobConsentStatus,
   BannerAdPosition,
   BannerAdSize,
 } from "@capacitor-community/admob";
@@ -13,20 +14,39 @@ const INTERSTITIAL_ID =
 
 export const isNative = () => Capacitor.isNativePlatform();
 
-let ready: Promise<void> | null = null;
+let ready: Promise<boolean> | null = null;
 
+/** Asks for ad consent where required (GDPR/UMP), then starts AdMob. Resolves true if ads may be shown. */
 export const initAds = () => {
-  if (!isNative()) return Promise.resolve();
-  ready ??= AdMob.initialize({ initializeForTesting: !import.meta.env.PROD }).then(
-    () => undefined,
-    () => undefined,
-  );
+  if (!isNative()) return Promise.resolve(false);
+  ready ??= (async () => {
+    try {
+      let info = await AdMob.requestConsentInfo();
+      if (info.isConsentFormAvailable && info.status === AdmobConsentStatus.REQUIRED) {
+        info = await AdMob.showConsentForm();
+      }
+      if (!info.canRequestAds) return false;
+      await AdMob.initialize({ initializeForTesting: !import.meta.env.PROD });
+      return true;
+    } catch {
+      return false;
+    }
+  })();
   return ready;
 };
 
-export const showBanner = async () => {
+/** Lets users review or change their ad privacy choices (required where GDPR applies). */
+export const openAdPrivacyOptions = async () => {
   if (!isNative()) return;
-  await initAds();
+  try {
+    await AdMob.showPrivacyOptionsForm();
+  } catch {
+    /* not required for this user */
+  }
+};
+
+export const showBanner = async () => {
+  if (!(await initAds())) return;
   try {
     await AdMob.showBanner({
       adId: BANNER_ID,
@@ -45,8 +65,8 @@ let lastInterstitial = 0;
 /** Shown only after a completed task, and at most once every 3 minutes. */
 export const showInterstitial = async () => {
   if (!isNative() || Date.now() - lastInterstitial < INTERSTITIAL_GAP_MS) return;
+  if (!(await initAds())) return;
   lastInterstitial = Date.now();
-  await initAds();
   try {
     await AdMob.prepareInterstitial({ adId: INTERSTITIAL_ID });
     await AdMob.showInterstitial();

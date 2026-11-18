@@ -3,7 +3,11 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { ThemeProvider } from "next-themes";
 import { AppLayout } from "./components/AppLayout";
+import { Onboarding } from "./components/Onboarding";
+import Scan from "./pages/Scan";
+import Live from "./pages/Live";
 import Index from "./pages/Index";
 import ToolRun from "./pages/ToolRun";
 import Storage from "./pages/Storage";
@@ -19,13 +23,17 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
+    <ThemeProvider attribute="class" defaultTheme="light" storageKey="tuneup.theme">
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <Onboarding />
       <BrowserRouter>
         <Routes>
           <Route element={<AppLayout />}>
             <Route path="/" element={<Index />} />
+            <Route path="/scan" element={<Scan />} />
+            <Route path="/live" element={<Live />} />
             <Route path="/tool/:id" element={<ToolRun />} />
             <Route path="/storage" element={<Storage />} />
             <Route path="/apps" element={<Apps />} />
@@ -40,6 +48,7 @@ const App = () => (
         </Routes>
       </BrowserRouter>
     </TooltipProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 
