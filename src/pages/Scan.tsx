@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { AlertTriangle, CheckCircle2, ExternalLink, ScanSearch, XCircle } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { ScoreRing } from "@/components/ScoreRing";
+import { NativeAd } from "@/components/NativeAd";
 import { Progress } from "@/components/ui/progress";
 import { clearOwnCache, canOpenSettings, computeScore, formatBytes, getStats, openSettings, type Stats } from "@/lib/device";
 import { buildFindings, type Finding } from "@/lib/findings";
@@ -129,6 +130,8 @@ const Scan = () => {
               ))}
             </ul>
           )}
+
+          <NativeAd slot="scan" />
 
           <button
             onClick={() => navigate("/")}

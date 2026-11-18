@@ -20,10 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
-      # Falls back to Google's public TEST IDs when repo variables are not set.
-      ADMOB_APP_ID: ${{ vars.ADMOB_APP_ID || 'ca-app-pub-3940256099942544~3347511713' }}
-      VITE_ADMOB_BANNER_ID: ${{ vars.ADMOB_BANNER_ID || 'ca-app-pub-3940256099942544/6300978111' }}
-      VITE_ADMOB_INTERSTITIAL_ID: ${{ vars.ADMOB_INTERSTITIAL_ID || 'ca-app-pub-3940256099942544/1033173712' }}
+      # AdMob app ID (ad unit IDs live in src/lib/ads.ts). Can be overridden with a repo variable.
+      ADMOB_APP_ID: ${{ vars.ADMOB_APP_ID || 'ca-app-pub-2832761207597793~5525147546' }}
 
     steps:
       - name: Checkout

@@ -1,11 +1,14 @@
 import { useEffect } from "react";
-import { isNative, showBanner } from "@/lib/ads";
+import { hideBanner, isNative, showBanner, useAdFree } from "@/lib/ads";
 
 /** Shows the native AdMob banner on Android. Renders nothing visible on the web. */
 export const AdBanner = () => {
-  useEffect(() => {
-    showBanner();
-  }, []);
+  const adFree = useAdFree();
 
-  return isNative() ? <div className="h-[50px]" aria-hidden /> : null;
+  useEffect(() => {
+    if (adFree) hideBanner();
+    else showBanner();
+  }, [adFree]);
+
+  return isNative() && !adFree ? <div className="h-[50px]" aria-hidden /> : null;
 };

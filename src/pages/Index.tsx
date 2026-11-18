@@ -2,6 +2,8 @@ import { Link } from "react-router-dom";
 import { Activity, ChevronRight, Flame, HardDrive, LayoutGrid, Smartphone, Gauge, Zap } from "lucide-react";
 import { ScoreRing } from "@/components/ScoreRing";
 import { WeekChart } from "@/components/WeekChart";
+import { NativeAd } from "@/components/NativeAd";
+import { AdFreeCard } from "@/components/AdFreeCard";
 import { useHealth } from "@/lib/health";
 import { streak } from "@/lib/history";
 import { formatBytes } from "@/lib/device";
@@ -86,10 +88,16 @@ const Index = () => {
         </div>
       </section>
 
+      <div className="mt-6">
+        <NativeAd slot="home" />
+      </div>
+
       <section className="mx-4 mt-6 rounded-3xl bg-card p-5 shadow-sm">
         <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-muted-foreground">Health this week</h2>
         <WeekChart refreshKey={score} />
       </section>
+
+      <AdFreeCard />
 
       <section className="mt-6 px-4">
         <h2 className="mb-3 px-1 text-sm font-bold uppercase tracking-wider text-muted-foreground">More</h2>
