@@ -32,7 +32,7 @@ const Index = () => {
           <ScoreRing value={score} label="Health" tone={ringTone} />
         </div>
         <p className="mt-4 text-lg font-bold">{status}</p>
-        <p className="text-sm text-muted-foreground">Run the tools below to raise your score.</p>
+        <p className="text-sm text-muted-foreground">Based on your phone's real storage, memory, battery and heat.</p>
         <Link
           to="/tool/junk"
           className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-primary text-base font-bold text-primary-foreground shadow-md shadow-primary/30 transition active:scale-[0.98]"

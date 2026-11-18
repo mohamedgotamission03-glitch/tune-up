@@ -14,7 +14,8 @@ const Privacy = () => (
         body: (
           <>
             <p>We do not require an account and we do not collect your name, email, contacts, messages, photos or location.</p>
-            <p>Device information shown in the app (for example storage, memory, battery and network type) is read locally on your device and is not sent to our servers.</p>
+            <p>Device status shown in the app (free storage, memory, battery level, health and temperature, model and Android version) is read locally on your device and is not sent to our servers.</p>
+            <p>The app does not read your installed apps list, files, photos or location. The cleaner only clears TuneUp's own cache.</p>
             <p>Your tool history and health score are stored locally on your device only.</p>
           </>
         ),

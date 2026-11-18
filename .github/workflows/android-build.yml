@@ -64,6 +64,12 @@ jobs:
           if [ ! -d android ]; then npx cap add android; fi
           npx cap sync android
 
+      - name: Install native device-stats plugin
+        run: |
+          DEST=android/app/src/main/java/com/tuneup/optimizer
+          mkdir -p "$DEST"
+          cp native/android/*.java "$DEST/"
+
       - name: Configure AdMob and version
         run: |
           MANIFEST=android/app/src/main/AndroidManifest.xml

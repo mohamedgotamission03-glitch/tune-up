@@ -1,68 +1,68 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { ExternalLink } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
-import { formatBytes } from "@/lib/health";
-
-const categories = [
-  { name: "Apps", gb: 24.6, bar: "bg-primary" },
-  { name: "Photos & videos", gb: 18.2, bar: "bg-emerald-500" },
-  { name: "Audio", gb: 4.1, bar: "bg-amber-500" },
-  { name: "Documents", gb: 2.8, bar: "bg-cyan-500" },
-  { name: "System", gb: 12.0, bar: "bg-slate-400" },
-];
-const TOTAL = 128;
+import { canOpenSettings, formatBytes, openSettings, useStats } from "@/lib/device";
 
 const Storage = () => {
-  const [app, setApp] = useState<{ usage: number; quota: number } | null>(null);
-
-  useEffect(() => {
-    navigator.storage?.estimate?.().then((e) => setApp({ usage: e.usage ?? 0, quota: e.quota ?? 0 }));
-  }, []);
-
-  const used = categories.reduce((s, c) => s + c.gb, 0);
+  const { stats } = useStats();
+  const total = stats?.diskTotal;
+  const free = stats?.diskFree;
+  const known = total !== undefined && free !== undefined;
+  const used = known ? total - free : 0;
+  const usedPct = known && total ? (used / total) * 100 : 0;
 
   return (
     <div className="animate-in fade-in duration-300">
-      <PageHeader title="Storage" subtitle="See what is taking up space" />
+      <PageHeader title="Storage" subtitle="See how much space is left" />
 
       <section className="mx-4 rounded-3xl bg-card p-5 shadow-sm">
-        <div className="flex items-end justify-between">
-          <p className="text-3xl font-extrabold">
-            {used.toFixed(1)} <span className="text-base font-semibold text-muted-foreground">of {TOTAL} GB used</span>
-          </p>
-        </div>
-        <div className="mt-4 flex h-4 overflow-hidden rounded-full bg-secondary">
-          {categories.map((c) => (
-            <div key={c.name} className={c.bar} style={{ width: `${(c.gb / TOTAL) * 100}%` }} />
-          ))}
-        </div>
-        <ul className="mt-5 space-y-3">
-          {categories.map((c) => (
-            <li key={c.name} className="flex items-center gap-3">
-              <span className={`h-3 w-3 rounded-full ${c.bar}`} />
-              <span className="flex-1 font-semibold">{c.name}</span>
-              <span className="text-sm font-bold tabular-nums text-muted-foreground">{c.gb.toFixed(1)} GB</span>
-            </li>
-          ))}
-        </ul>
-        <p className="mt-4 text-xs text-muted-foreground">Category sizes are estimates.</p>
+        {known ? (
+          <>
+            <p className="text-3xl font-extrabold">
+              {formatBytes(used)} <span className="text-base font-semibold text-muted-foreground">of {formatBytes(total)} used</span>
+            </p>
+            <div className="mt-4 h-4 overflow-hidden rounded-full bg-secondary">
+              <div
+                className={`h-full rounded-full transition-all duration-700 ${usedPct > 85 ? "bg-destructive" : "bg-primary"}`}
+                style={{ width: `${usedPct}%` }}
+              />
+            </div>
+            <div className="mt-4 flex justify-between text-sm font-semibold">
+              <span className="text-muted-foreground">Free</span>
+              <span>{formatBytes(free)}</span>
+            </div>
+            {usedPct > 85 && <p className="mt-3 text-sm font-semibold text-destructive">Storage is almost full. Free up some space.</p>}
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">Exact storage numbers are available in the Android app.</p>
+        )}
       </section>
 
-      {app && (
-        <section className="mx-4 mt-4 rounded-3xl bg-card p-5 shadow-sm">
-          <p className="font-bold">TuneUp data</p>
-          <p className="text-sm text-muted-foreground">
-            {formatBytes(app.usage)} used of {formatBytes(app.quota)} available to this app.
-          </p>
-        </section>
-      )}
+      <section className="mx-4 mt-4 rounded-3xl bg-card p-5 text-sm text-muted-foreground shadow-sm">
+        <p className="font-bold text-foreground">How to free up space</p>
+        <ul className="mt-2 list-disc space-y-1 pl-5">
+          <li>Run the Storage Cleaner to clear TuneUp's cache.</li>
+          <li>Use Android's storage screen to remove large or unused files.</li>
+          <li>Back up photos and videos, then delete the local copies.</li>
+        </ul>
+      </section>
 
-      <Link
-        to="/tool/junk"
-        className="mx-4 mt-4 flex h-12 items-center justify-center rounded-full bg-primary font-bold text-primary-foreground shadow-md shadow-primary/30 active:scale-[0.98]"
-      >
-        Free up space
-      </Link>
+      <div className="mx-4 mt-4 space-y-3">
+        <Link
+          to="/tool/junk"
+          className="flex h-12 items-center justify-center rounded-full bg-primary font-bold text-primary-foreground shadow-md shadow-primary/30 active:scale-[0.98]"
+        >
+          Run Storage Cleaner
+        </Link>
+        {canOpenSettings() && (
+          <button
+            onClick={() => openSettings("storage")}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-secondary font-bold text-secondary-foreground active:scale-[0.98]"
+          >
+            <ExternalLink className="h-4 w-4" /> Open Android storage settings
+          </button>
+        )}
+      </div>
     </div>
   );
 };

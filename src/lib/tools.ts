@@ -1,12 +1,14 @@
-import {
-  Trash2,
-  MemoryStick,
-  BatteryCharging,
-  Thermometer,
-  type LucideIcon,
-} from "lucide-react";
+import { Trash2, MemoryStick, BatteryCharging, Thermometer, type LucideIcon } from "lucide-react";
+import { clearOwnCache, formatBytes, getStats, type SettingsTarget } from "./device";
 
 export type ToolId = "junk" | "ram" | "battery" | "cpu";
+
+export interface ToolResult {
+  headline: string;
+  stats: { label: string; value: string }[];
+  tips: string[];
+  cta?: { label: string; target: SettingsTarget };
+}
 
 export interface Tool {
   id: ToolId;
@@ -16,74 +18,125 @@ export interface Tool {
   icon: LucideIcon;
   tint: string;
   steps: string[];
-  result: (n: number) => { headline: string; stats: { label: string; value: string }[] };
+  run: () => Promise<ToolResult>;
 }
+
+const NA = "Available in the Android app";
 
 export const tools: Tool[] = [
   {
     id: "junk",
-    title: "Junk Cleaner",
-    blurb: "Remove cache & leftover files",
+    title: "Storage Cleaner",
+    blurb: "Clear TuneUp's cache & check free space",
     action: "Clean now",
     icon: Trash2,
     tint: "bg-blue-100 text-blue-700",
-    steps: ["Scanning app cache", "Finding residual files", "Checking temp files", "Clearing junk"],
-    result: (n) => ({
-      headline: `${(n * 3.1 + 180).toFixed(0)} MB cleaned`,
-      stats: [
-        { label: "Cache", value: `${(n * 1.4 + 90).toFixed(0)} MB` },
-        { label: "Residual", value: `${(n * 1.1 + 60).toFixed(0)} MB` },
-        { label: "Temp", value: `${(n * 0.6 + 30).toFixed(0)} MB` },
-      ],
-    }),
+    steps: ["Measuring storage", "Finding cache files", "Clearing cache", "Re-checking space"],
+    run: async () => {
+      const freed = await clearOwnCache();
+      const s = await getStats();
+      return {
+        headline: freed > 0 ? `${formatBytes(freed)} cleared` : "Cache already clean",
+        stats: [
+          { label: "Cleared", value: formatBytes(freed) },
+          { label: "Free space", value: s.diskFree !== undefined ? formatBytes(s.diskFree) : "—" },
+          { label: "Total", value: s.diskTotal !== undefined ? formatBytes(s.diskTotal) : "—" },
+        ],
+        tips: [
+          "Android does not allow apps to delete other apps' cache. Use the system storage screen to free up more space.",
+          "Delete old downloads, large videos and duplicate photos you no longer need.",
+          ...(s.native ? [] : [NA + " for exact storage numbers."]),
+        ],
+        cta: { label: "Open storage settings", target: "storage" },
+      };
+    },
   },
   {
     id: "ram",
-    title: "RAM Booster",
-    blurb: "Free memory from idle apps",
-    action: "Boost now",
+    title: "Memory Check",
+    blurb: "See real RAM usage & get tips",
+    action: "Check now",
     icon: MemoryStick,
     tint: "bg-emerald-100 text-emerald-700",
-    steps: ["Reading memory usage", "Finding idle processes", "Stopping background apps", "Reclaiming memory"],
-    result: (n) => ({
-      headline: `${(n * 4 + 320).toFixed(0)} MB freed`,
-      stats: [
-        { label: "Apps stopped", value: `${Math.round(n / 4) + 6}` },
-        { label: "Speed gain", value: `${Math.round(n / 3) + 12}%` },
-      ],
-    }),
+    steps: ["Reading memory", "Checking available RAM", "Analysing usage", "Preparing tips"],
+    run: async () => {
+      const s = await getStats();
+      const used = s.ramTotal && s.ramFree !== undefined ? s.ramTotal - s.ramFree : undefined;
+      const low = s.ramTotal && s.ramFree !== undefined && s.ramFree / s.ramTotal < 0.15;
+      return {
+        headline: s.ramFree !== undefined ? `${formatBytes(s.ramFree)} RAM free` : "Memory checked",
+        stats: [
+          { label: "Free", value: formatBytes(s.ramFree) },
+          { label: "Used", value: formatBytes(used) },
+          { label: "Total", value: formatBytes(s.ramTotal) },
+        ],
+        tips: [
+          low
+            ? "Memory is running low. Close apps you are not using from the recent apps screen."
+            : "Memory looks healthy. Android manages RAM automatically, so there is nothing you need to close.",
+          "Restart your phone once a week to keep it smooth.",
+          "Uninstall apps you no longer use to reduce background activity.",
+        ],
+        cta: { label: "Review installed apps", target: "apps" },
+      };
+    },
   },
   {
     id: "battery",
-    title: "Battery Saver",
-    blurb: "Stretch every last percent",
-    action: "Save power",
+    title: "Battery Care",
+    blurb: "Battery status, health & power tips",
+    action: "Check now",
     icon: BatteryCharging,
     tint: "bg-amber-100 text-amber-800",
-    steps: ["Checking power drain", "Detecting heavy apps", "Limiting background sync", "Applying power plan"],
-    result: (n) => ({
-      headline: `+${Math.round(n * 2.2 + 35)} min battery`,
-      stats: [
-        { label: "Apps hibernated", value: `${Math.round(n / 5) + 4}` },
-        { label: "Drain reduced", value: `${Math.round(n / 4) + 9}%` },
-      ],
-    }),
+    steps: ["Reading battery level", "Checking health", "Reviewing power use", "Preparing tips"],
+    run: async () => {
+      const s = await getStats();
+      const level = s.batteryLevel !== undefined ? Math.round(s.batteryLevel) : undefined;
+      return {
+        headline: level !== undefined ? `Battery at ${level}%` : "Battery checked",
+        stats: [
+          { label: "Level", value: level !== undefined ? `${level}%` : "—" },
+          { label: "Status", value: s.charging === undefined ? "—" : s.charging ? "Charging" : "On battery" },
+          { label: "Health", value: s.batteryHealth ?? "—" },
+        ],
+        tips: [
+          "Turn on Battery Saver in Android settings when you need to stretch your charge.",
+          "Lower screen brightness and shorten screen timeout.",
+          "Check which apps use the most power and restrict the ones you rarely use.",
+        ],
+        cta: { label: "Open battery usage", target: "battery" },
+      };
+    },
   },
   {
     id: "cpu",
-    title: "CPU Cooler",
-    blurb: "Cool down a hot phone",
-    action: "Cool down",
+    title: "Heat Monitor",
+    blurb: "Check phone temperature & cooling tips",
+    action: "Check now",
     icon: Thermometer,
     tint: "bg-cyan-100 text-cyan-800",
-    steps: ["Measuring temperature", "Finding heat sources", "Pausing heavy apps", "Cooling down"],
-    result: (n) => ({
-      headline: `Cooled by ${(n / 10 + 2.4).toFixed(1)}°C`,
-      stats: [
-        { label: "Apps paused", value: `${Math.round(n / 6) + 3}` },
-        { label: "CPU load", value: `-${Math.round(n / 3) + 14}%` },
-      ],
-    }),
+    steps: ["Reading temperature", "Checking processor load", "Analysing heat", "Preparing tips"],
+    run: async () => {
+      const s = await getStats();
+      const t = s.batteryTemp;
+      const state = t === undefined ? "—" : t < 38 ? "Normal" : t < 43 ? "Warm" : "Hot";
+      return {
+        headline: t !== undefined ? `${t.toFixed(1)}°C · ${state}` : "Temperature unavailable",
+        stats: [
+          { label: "Temperature", value: t !== undefined ? `${t.toFixed(1)}°C` : "—" },
+          { label: "State", value: state },
+          { label: "CPU cores", value: s.cores ? String(s.cores) : "—" },
+        ],
+        tips: [
+          t !== undefined && t >= 38
+            ? "Your phone is warm. Take off the case, stay out of direct sun and pause heavy apps or games."
+            : "Your phone temperature is fine.",
+          "Avoid using the phone while fast charging if it gets hot.",
+          ...(t === undefined ? [NA + " for temperature."] : []),
+        ],
+        cta: { label: "Open battery usage", target: "battery" },
+      };
+    },
   },
 ];
 

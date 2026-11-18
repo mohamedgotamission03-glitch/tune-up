@@ -1,28 +1,25 @@
-import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
-
-interface BatteryManager {
-  level: number;
-  charging: boolean;
-}
+import { formatBytes, useStats } from "@/lib/device";
 
 const Device = () => {
-  const [battery, setBattery] = useState<BatteryManager | null>(null);
+  const { stats: s } = useStats();
+  if (!s) return <PageHeader title="Device Info" back />;
 
-  useEffect(() => {
-    (navigator as Navigator & { getBattery?: () => Promise<BatteryManager> }).getBattery?.().then(setBattery);
-  }, []);
-
-  const nav = navigator as Navigator & { deviceMemory?: number; connection?: { effectiveType?: string } };
+  const nav = navigator as Navigator & { connection?: { effectiveType?: string } };
   const rows = [
-    ["Platform", nav.platform || "Unknown"],
-    ["CPU cores", String(nav.hardwareConcurrency ?? "Unknown")],
-    ["Memory", nav.deviceMemory ? `~${nav.deviceMemory} GB` : "Unknown"],
+    ["Model", s.native ? `${s.manufacturer} ${s.model}` : s.model],
+    ["Android version", s.androidVersion],
+    ["CPU cores", s.cores ? String(s.cores) : "—"],
+    ["RAM", formatBytes(s.ramTotal)],
+    ["Storage", s.diskTotal !== undefined ? `${formatBytes(s.diskFree)} free of ${formatBytes(s.diskTotal)}` : "—"],
     ["Screen", `${screen.width} × ${screen.height}`],
-    ["Pixel ratio", `${window.devicePixelRatio}x`],
-    ["Network", nav.connection?.effectiveType?.toUpperCase() ?? (nav.onLine ? "Online" : "Offline")],
-    ["Battery", battery ? `${Math.round(battery.level * 100)}%${battery.charging ? " (charging)" : ""}` : "Unavailable"],
-    ["Language", nav.language],
+    ["Network", nav.connection?.effectiveType?.toUpperCase() ?? (navigator.onLine ? "Online" : "Offline")],
+    [
+      "Battery",
+      s.batteryLevel !== undefined ? `${Math.round(s.batteryLevel)}%${s.charging ? " (charging)" : ""}` : "—",
+    ],
+    ["Battery health", s.batteryHealth ?? "—"],
+    ["Temperature", s.batteryTemp !== undefined ? `${s.batteryTemp.toFixed(1)}°C` : "—"],
   ];
 
   return (
@@ -36,7 +33,7 @@ const Device = () => {
           </div>
         ))}
       </dl>
-      <p className="mx-4 mt-4 break-words px-2 text-xs text-muted-foreground">{nav.userAgent}</p>
+      {!s.native && <p className="mx-6 mt-3 text-xs text-muted-foreground">Full details are available in the Android app.</p>}
     </div>
   );
 };

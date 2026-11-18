@@ -15,7 +15,7 @@ const Terms = () => (
       },
       {
         title: "No guarantees",
-        body: <p>Optimisation results, scores and estimates are indicative and may vary by device and Android version. The app is provided "as is" without warranties of any kind.</p>,
+        body: <p>The app shows device readings and recommendations; Android controls memory, battery and apps, and results vary by device and Android version. The app does not guarantee faster performance and is provided "as is" without warranties of any kind.</p>,
       },
       {
         title: "Advertising",

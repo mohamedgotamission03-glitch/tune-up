@@ -39,8 +39,13 @@ export const showBanner = async () => {
   }
 };
 
+const INTERSTITIAL_GAP_MS = 3 * 60 * 1000;
+let lastInterstitial = 0;
+
+/** Shown only after a completed task, and at most once every 3 minutes. */
 export const showInterstitial = async () => {
-  if (!isNative()) return;
+  if (!isNative() || Date.now() - lastInterstitial < INTERSTITIAL_GAP_MS) return;
+  lastInterstitial = Date.now();
   await initAds();
   try {
     await AdMob.prepareInterstitial({ adId: INTERSTITIAL_ID });

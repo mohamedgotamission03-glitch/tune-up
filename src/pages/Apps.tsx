@@ -1,63 +1,47 @@
-import { useState } from "react";
 import { toast } from "sonner";
-import { Moon } from "lucide-react";
+import { AppWindow, BatteryWarning, Database, MonitorSmartphone, ShieldCheck, ChevronRight } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
-import { cn } from "@/lib/utils";
+import { canOpenSettings, openSettings, type SettingsTarget } from "@/lib/device";
 
-const initial = [
-  { name: "Social Feed", mb: 412, ram: 310, last: "Today" },
-  { name: "Video Streaming", mb: 268, ram: 240, last: "Yesterday" },
-  { name: "Photo Editor", mb: 190, ram: 150, last: "3 days ago" },
-  { name: "Mobile Game", mb: 1240, ram: 420, last: "5 days ago" },
-  { name: "Shopping", mb: 156, ram: 120, last: "2 weeks ago" },
-  { name: "Maps & Travel", mb: 134, ram: 98, last: "Last month" },
-  { name: "Music Player", mb: 88, ram: 76, last: "Today" },
+const shortcuts: { target: SettingsTarget; title: string; desc: string; icon: typeof AppWindow }[] = [
+  { target: "apps", title: "All apps", desc: "Uninstall, clear cache or force stop any app", icon: AppWindow },
+  { target: "batteryOptimization", title: "Battery optimization", desc: "Restrict apps that drain power", icon: BatteryWarning },
+  { target: "data", title: "Data usage", desc: "See which apps use mobile data", icon: Database },
+  { target: "defaultApps", title: "Default apps", desc: "Choose your browser, dialer and more", icon: ShieldCheck },
+  { target: "display", title: "Display", desc: "Brightness and screen timeout", icon: MonitorSmartphone },
 ];
 
 const Apps = () => {
-  const [sleeping, setSleeping] = useState<Set<string>>(new Set());
-
-  const toggle = (name: string) => {
-    const next = new Set(sleeping);
-    if (next.has(name)) next.delete(name);
-    else {
-      next.add(name);
-      toast.success(`${name} hibernated`);
+  const go = async (target: SettingsTarget) => {
+    if (!canOpenSettings()) {
+      toast.info("This opens the matching Android settings screen in the app.");
+      return;
     }
-    setSleeping(next);
+    await openSettings(target);
   };
 
   return (
     <div className="animate-in fade-in duration-300">
-      <PageHeader title="App Manager" subtitle="Hibernate apps you rarely use" />
+      <PageHeader title="App Manager" subtitle="Jump to Android's own app controls" />
       <ul className="mx-4 overflow-hidden rounded-3xl bg-card shadow-sm">
-        {initial.map((a, i) => {
-          const asleep = sleeping.has(a.name);
-          return (
-            <li key={a.name} className={cn("flex items-center gap-3 p-4", i > 0 && "border-t")}>
-              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-secondary text-lg font-extrabold text-primary">
-                {a.name[0]}
+        {shortcuts.map(({ target, title, desc, icon: Icon }, i) => (
+          <li key={target} className={i > 0 ? "border-t" : ""}>
+            <button onClick={() => go(target)} className="flex w-full items-center gap-3 p-4 text-left active:bg-secondary">
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-secondary text-primary">
+                <Icon className="h-5 w-5" />
               </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-bold">{a.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {a.mb} MB · {a.ram} MB RAM · {a.last}
-                </p>
-              </div>
-              <button
-                onClick={() => toggle(a.name)}
-                className={cn(
-                  "inline-flex h-9 items-center gap-1 rounded-full px-3 text-xs font-bold transition active:scale-95",
-                  asleep ? "bg-emerald-100 text-emerald-800" : "bg-primary text-primary-foreground",
-                )}
-              >
-                <Moon className="h-3.5 w-3.5" /> {asleep ? "Asleep" : "Hibernate"}
-              </button>
-            </li>
-          );
-        })}
+              <span className="min-w-0 flex-1">
+                <span className="block font-bold">{title}</span>
+                <span className="block text-xs text-muted-foreground">{desc}</span>
+              </span>
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            </button>
+          </li>
+        ))}
       </ul>
-      <p className="mx-6 mt-3 text-xs text-muted-foreground">Sample list shown for illustration.</p>
+      <p className="mx-6 mt-3 text-xs text-muted-foreground">
+        For your privacy, TuneUp does not read your installed apps list. Android's own screens give you full control.
+      </p>
     </div>
   );
 };
