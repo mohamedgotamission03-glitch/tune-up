@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
-  appId: "com.tuneup.optimizer",
+  appId: "com.mogu.tuneup",
   appName: "TuneUp",
   webDir: "dist",
   android: {

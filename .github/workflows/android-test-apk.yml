@@ -49,7 +49,7 @@ jobs:
 
       - name: Install native device-stats plugin
         run: |
-          DEST=android/app/src/main/java/com/tuneup/optimizer
+          DEST=android/app/src/main/java/com/mogu/tuneup
           mkdir -p "$DEST"
           cp native/android/*.java "$DEST/"
 

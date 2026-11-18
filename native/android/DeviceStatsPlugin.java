@@ -1,4 +1,4 @@
-package com.tuneup.optimizer;
+package com.mogu.tuneup;
 
 import android.app.ActivityManager;
 import android.content.Context;
