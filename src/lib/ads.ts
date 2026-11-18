@@ -14,7 +14,8 @@ import {
  * (never serve live ads during development - that can get an account suspended).
  * Any unit can be overridden with a VITE_ADMOB_* environment variable.
  */
-const PROD = import.meta.env.PROD;
+// Live ads only for `vite build --mode production`; dev and `--mode test` builds use Google's test ads.
+const PROD = import.meta.env.MODE === "production";
 const unit = (envValue: string | undefined, live: string, test: string) => envValue ?? (PROD ? live : test);
 
 const IDS = {
