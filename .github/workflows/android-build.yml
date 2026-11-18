@@ -1,66 +1,83 @@
-name: Build Android (APK + AAB)
+name: Build Android store release
 
 on:
   workflow_dispatch:
     inputs:
-      version_name:
-        description: "Version name (e.g. 1.0.0)"
-        required: true
-        default: "1.0.0"
       version_code:
-        description: "Version code (integer, must increase for every Play upload)"
+        description: 'Positive version code; increase for every store update'
         required: true
-        default: "1"
-  push:
-    tags:
-      - "v*"
+        default: '1'
+        type: string
+      version_name:
+        description: 'Public version, for example 1.0.0'
+        required: true
+        default: '1.0.0'
+        type: string
+
+permissions:
+  contents: read
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-    env:
-      # AdMob app ID (ad unit IDs live in src/lib/ads.ts). Can be overridden with a repo variable.
-      ADMOB_APP_ID: ${{ vars.ADMOB_APP_ID || 'ca-app-pub-2832761207597793~5525147546' }}
-
+  android-store-release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Check out project
+        uses: actions/checkout@v5
 
-      - name: Resolve version
+      - name: Validate version and require signing credentials
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          IN_CODE: ${{ inputs.version_code }}
+          IN_NAME: ${{ inputs.version_name }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "VERSION_NAME=${{ inputs.version_name }}" >> "$GITHUB_ENV"
-            echo "VERSION_CODE=${{ inputs.version_code }}" >> "$GITHUB_ENV"
-          else
-            echo "VERSION_NAME=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
-            echo "VERSION_CODE=${{ github.run_number }}" >> "$GITHUB_ENV"
-          fi
+          set -euo pipefail
+          case "$IN_CODE" in ''|*[!0-9]*) echo "Version code must be a whole number"; exit 1;; esac
+          case "$IN_NAME" in ''|*[!0-9A-Za-z._-]*) echo "Invalid version name"; exit 1;; esac
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "Missing GitHub Actions secret: $name"
+              exit 1
+            fi
+          done
+          umask 077
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v5
         with:
-          node-version: 22
+          version: 10
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
         with:
-          distribution: temurin
-          java-version: 21
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+          node-version: '22'
+          cache: pnpm
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: pnpm install --no-frozen-lockfile
 
-      - name: Build web app
-        run: npm run build
+      - name: Build production web app (live ads)
+        run: pnpm exec vite build --mode production
 
-      - name: Add Android platform
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android 36 tools
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+
+      - name: Create Android project
         run: |
-          if [ ! -d android ]; then npx cap add android; fi
-          npx cap sync android
+          if [ ! -d android ]; then pnpm exec cap add android; fi
 
       - name: Install native device-stats plugin
         run: |
@@ -68,60 +85,78 @@ jobs:
           mkdir -p "$DEST"
           cp native/android/*.java "$DEST/"
 
-      - name: Configure AdMob and version
+      - name: Set app version
+        env:
+          IN_CODE: ${{ inputs.version_code }}
+          IN_NAME: ${{ inputs.version_name }}
+        run: |
+          GRADLE=android/app/build.gradle
+          sed -i -E "s/versionCode [0-9]+/versionCode $IN_CODE/" "$GRADLE"
+          sed -i -E "s/versionName \"[^\"]*\"/versionName \"$IN_NAME\"/" "$GRADLE"
+          grep -E "versionCode|versionName" "$GRADLE"
+
+      - name: Generate app icons
+        run: |
+          pnpm add -D sharp
+          node scripts/make-icons.mjs
+          find android/app/src/main/res -name 'ic_launcher*' | sort
+
+      - name: Add AdMob app id and permission
         run: |
           MANIFEST=android/app/src/main/AndroidManifest.xml
+          APP_ID="ca-app-pub-2832761207597793~5525147546"
           if ! grep -q "com.google.android.gms.ads.APPLICATION_ID" "$MANIFEST"; then
-            sed -i "s#</application>#    <meta-data android:name=\"com.google.android.gms.ads.APPLICATION_ID\" android:value=\"${ADMOB_APP_ID}\"/>\n    </application>#" "$MANIFEST"
+            sed -i "s#</application>#    <meta-data android:name=\"com.google.android.gms.ads.APPLICATION_ID\" android:value=\"$APP_ID\"/>\n    </application>#" "$MANIFEST"
           fi
-          GRADLE=android/app/build.gradle
-          sed -i -E "s/versionCode [0-9]+/versionCode ${VERSION_CODE}/" "$GRADLE"
-          sed -i -E "s/versionName \"[^\"]*\"/versionName \"${VERSION_NAME}\"/" "$GRADLE"
-          grep -nE "versionCode|versionName" "$GRADLE"
-
-      - name: Prepare signing keystore
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          KS="$RUNNER_TEMP/release.keystore"
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > "$KS"
-          else
-            echo "::warning::No KEYSTORE_BASE64 secret found - using a temporary keystore. Do NOT upload this build to Google Play."
-            KEYSTORE_PASSWORD="android-temp"
-            KEY_ALIAS="temp"
-            KEY_PASSWORD="android-temp"
-            keytool -genkeypair -v -keystore "$KS" -alias "$KEY_ALIAS" -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass "$KEYSTORE_PASSWORD" -keypass "$KEY_PASSWORD" -dname "CN=TuneUp, O=TuneUp, C=US"
+          if ! grep -q "permission.AD_ID" "$MANIFEST"; then
+            sed -i 's#<application#<uses-permission android:name="com.google.android.gms.permission.AD_ID"/>\n    <application#' "$MANIFEST"
           fi
-          {
-            echo "KEYSTORE_PATH=$KS"
-            echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
-            echo "KEY_ALIAS=$KEY_ALIAS"
-            echo "KEY_PASSWORD=$KEY_PASSWORD"
-          } >> "$GITHUB_ENV"
 
-      - name: Build APK and AAB
+      - name: Sync Capacitor
+        run: pnpm exec cap sync android
+
+      - name: Build release APK and Android App Bundle
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease bundleRelease -I "$GITHUB_WORKSPACE/.github/android/signing.init.gradle" --no-daemon
+          ./gradlew --no-daemon assembleRelease bundleRelease
 
-      - name: Package outputs
+      - name: Sign and verify artifacts
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          IN_NAME: ${{ inputs.version_name }}
         run: |
-          OUT="TuneUp-v${VERSION_NAME}"
-          mkdir -p "$OUT"
-          cp android/app/build/outputs/apk/release/*.apk "$OUT/TuneUp-v${VERSION_NAME}.apk"
-          cp android/app/build/outputs/bundle/release/*.aab "$OUT/TuneUp-v${VERSION_NAME}.aab"
-          zip -r "$OUT.zip" "$OUT"
-          echo "ZIP_NAME=$OUT" >> "$GITHUB_ENV"
+          set -euo pipefail
+          BT="$ANDROID_HOME/build-tools/36.0.0"
+          KS="$RUNNER_TEMP/release.jks"
+          mkdir -p store-artifacts
 
-      - name: Upload artifact (zip with APK + AAB)
-        uses: actions/upload-artifact@v4
+          APK_IN=$(ls android/app/build/outputs/apk/release/*.apk | head -n 1)
+          "$BT/zipalign" -f -P 16 4 "$APK_IN" "$RUNNER_TEMP/aligned.apk"
+          "$BT/apksigner" sign --ks "$KS" --ks-key-alias "$ANDROID_KEY_ALIAS" \
+            --ks-pass env:ANDROID_KEYSTORE_PASSWORD --key-pass env:ANDROID_KEY_PASSWORD \
+            --out "store-artifacts/TuneUp-$IN_NAME-release.apk" "$RUNNER_TEMP/aligned.apk"
+          "$BT/apksigner" verify "store-artifacts/TuneUp-$IN_NAME-release.apk"
+
+          AAB=android/app/build/outputs/bundle/release/app-release.aab
+          jarsigner -keystore "$KS" -storepass:env ANDROID_KEYSTORE_PASSWORD -keypass:env ANDROID_KEY_PASSWORD \
+            -sigalg SHA256withRSA -digestalg SHA-256 "$AAB" "$ANDROID_KEY_ALIAS"
+          jarsigner -verify "$AAB"
+          cp "$AAB" "store-artifacts/TuneUp-$IN_NAME-play-release.aab"
+
+          echo "Signing certificate fingerprint (must match Play Console):"
+          keytool -list -v -keystore "$KS" -storepass:env ANDROID_KEYSTORE_PASSWORD -alias "$ANDROID_KEY_ALIAS" | grep -E "SHA1|SHA256"
+
+      - name: Upload store artifacts only (never signing keys)
+        uses: actions/upload-artifact@v6
         with:
-          name: ${{ env.ZIP_NAME }}
-          path: ${{ env.ZIP_NAME }}.zip
-          retention-days: 30
+          name: TuneUp-${{ inputs.version_name }}-store-release
+          path: store-artifacts/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Remove temporary signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks" "$RUNNER_TEMP/aligned.apk"
