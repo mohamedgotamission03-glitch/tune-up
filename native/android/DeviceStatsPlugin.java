@@ -71,33 +71,51 @@ public class DeviceStatsPlugin extends Plugin {
     @PluginMethod
     public void openSettings(PluginCall call) {
         String target = call.getString("target", "");
-        String action;
+        String[] actions;
         switch (target) {
-            case "storage": action = Settings.ACTION_INTERNAL_STORAGE_SETTINGS; break;
-            case "battery": action = Intent.ACTION_POWER_USAGE_SUMMARY; break;
-            case "batteryOptimization": action = Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS; break;
-            case "apps": action = Settings.ACTION_APPLICATION_SETTINGS; break;
-            case "defaultApps": action = Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS; break;
-            case "data": action = Settings.ACTION_DATA_USAGE_SETTINGS; break;
-            case "display": action = Settings.ACTION_DISPLAY_SETTINGS; break;
-            default: action = Settings.ACTION_SETTINGS;
+            case "storage": actions = new String[] { Settings.ACTION_INTERNAL_STORAGE_SETTINGS }; break;
+            case "battery": actions = new String[] { Intent.ACTION_POWER_USAGE_SUMMARY }; break;
+            case "batteryOptimization": actions = new String[] { Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS }; break;
+            case "apps": actions = new String[] { Settings.ACTION_APPLICATION_SETTINGS }; break;
+            case "defaultApps": actions = new String[] { Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS }; break;
+            case "data":
+                // Literal strings: the constant is missing on older SDKs and some devices use different screens.
+                actions = new String[] {
+                    "android.settings.DATA_USAGE_SETTINGS",
+                    "COMPONENT:com.android.settings/com.android.settings.Settings$DataUsageSummaryActivity",
+                    Settings.ACTION_NETWORK_OPERATOR_SETTINGS,
+                    Settings.ACTION_WIRELESS_SETTINGS
+                };
+                break;
+            case "display": actions = new String[] { Settings.ACTION_DISPLAY_SETTINGS }; break;
+            default: actions = new String[] { Settings.ACTION_SETTINGS };
         }
-        try {
-            startSettings(action);
-        } catch (Exception e) {
-            try {
-                startSettings(Settings.ACTION_SETTINGS);
-            } catch (Exception ignored) {
-                // nothing else we can do
+        for (String a : actions) {
+            if (startSettings(a)) {
+                call.resolve();
+                return;
             }
         }
+        startSettings(Settings.ACTION_SETTINGS);
         call.resolve();
     }
 
-    private void startSettings(String action) {
-        Intent i = new Intent(action);
-        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        getContext().startActivity(i);
+    private boolean startSettings(String action) {
+        try {
+            Intent i;
+            if (action.startsWith("COMPONENT:")) {
+                String[] parts = action.substring(10).split("/");
+                i = new Intent();
+                i.setClassName(parts[0], parts[1]);
+            } else {
+                i = new Intent(action);
+            }
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(i);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /** Deletes the contents of a directory (not the directory itself) and returns bytes removed. */
