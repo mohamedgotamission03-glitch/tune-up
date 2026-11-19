@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useTheme } from "next-themes";
-import { ChevronRight, ShieldCheck, FileText, Smartphone, Mail, Moon, Megaphone } from "lucide-react";
+import { ChevronRight, ShieldCheck, FileText, Smartphone, Mail, Moon, Megaphone, Package } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Switch } from "@/components/ui/switch";
 import { APP_NAME, APP_VERSION, SUPPORT_EMAIL } from "@/lib/appInfo";
@@ -10,6 +10,7 @@ const links = [
   { to: "/device", label: "Device info", icon: Smartphone },
   { to: "/privacy", label: "Privacy Policy", icon: ShieldCheck },
   { to: "/terms", label: "Terms of Service", icon: FileText },
+  ...(import.meta.env.DEV ? [{ to: "/kit", label: "Store kit (preview only)", icon: Package }] : []),
 ];
 
 const rowCls = "flex items-center gap-3 p-4 active:bg-secondary";
