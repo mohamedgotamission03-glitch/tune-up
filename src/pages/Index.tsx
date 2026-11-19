@@ -37,7 +37,9 @@ const Index = () => {
       <header className="flex items-center gap-3 px-5 pb-2 pt-6">
         <img src="/icon.svg" alt="" className="h-10 w-10 rounded-xl" />
         <div className="flex-1">
-          <h1 className="text-xl font-extrabold leading-tight">TuneUp</h1>
+          <h1 className="text-xl font-extrabold leading-tight">
+            TuneUp <span className="ml-1 rounded-full bg-primary px-2 py-0.5 align-middle text-[11px] font-extrabold text-primary-foreground">2027</span>
+          </h1>
           <p className="text-xs font-medium text-muted-foreground">Keep your phone healthy</p>
         </div>
         {days > 0 && (

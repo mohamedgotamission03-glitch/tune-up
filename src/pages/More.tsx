@@ -47,7 +47,7 @@ const More = () => {
         </a>
       </div>
       <p className="mt-6 text-center text-xs text-muted-foreground">
-        {APP_NAME} v{APP_VERSION}
+        {APP_NAME} 2027 · v{APP_VERSION}
       </p>
     </div>
   );
