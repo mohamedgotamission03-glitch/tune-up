@@ -1,11 +1,9 @@
 import { Link } from "react-router-dom";
 import { useTheme } from "next-themes";
-import { ChevronRight, ShieldCheck, FileText, Smartphone, Mail, Moon, Megaphone, Package } from "lucide-react";
+import { ChevronRight, ShieldCheck, FileText, Smartphone, Mail, Moon, Package } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Switch } from "@/components/ui/switch";
 import { APP_NAME, APP_VERSION, SUPPORT_EMAIL } from "@/lib/appInfo";
-import { isNative, openAdPrivacyOptions } from "@/lib/ads";
-
 const links = [
   { to: "/device", label: "Device info", icon: Smartphone },
   { to: "/privacy", label: "Privacy Policy", icon: ShieldCheck },
@@ -34,13 +32,6 @@ const More = () => {
             <ChevronRight className="h-5 w-5 text-muted-foreground" />
           </Link>
         ))}
-        {isNative() && (
-          <button onClick={openAdPrivacyOptions} className={`${rowCls} w-full border-t text-left`}>
-            <span className={iconCls}><Megaphone className="h-5 w-5" /></span>
-            <span className="flex-1 font-semibold">Ad privacy choices</span>
-            <ChevronRight className="h-5 w-5 text-muted-foreground" />
-          </button>
-        )}
         <a href={`mailto:${SUPPORT_EMAIL}`} className={`${rowCls} border-t`}>
           <span className={iconCls}><Mail className="h-5 w-5" /></span>
           <span className="flex-1 font-semibold">Contact support</span>
